@@ -17,6 +17,11 @@ struct ImageAnnotationView: View {
     @State private var editingEndpoint: EndpointType?
     @State private var editingPreviewLine: MeasurementLine?
     @State private var lastHapticDistance: CGFloat = 0
+    @State private var isCreatingNewLineFromEndpoint = false
+    @State private var newLineStartPoint: CGPoint = .zero
+    @State private var longPressTimer: Timer?
+    @State private var waitingForLongPress = false
+    @State private var pendingEndpointEdit: (MeasurementLine, EndpointType)?
     
     enum EndpointType {
         case start, end
@@ -45,22 +50,78 @@ struct ImageAnnotationView: View {
                         // Combined gesture for both creating new measurements and editing endpoints
                         DragGesture(minimumDistance: 0)
                             .onChanged { dragValue in
-                                if editingMeasurement == nil && currentDragLine == nil {
+                                if editingMeasurement == nil && currentDragLine == nil && !isCreatingNewLineFromEndpoint && !waitingForLongPress {
                                     // Check if we're starting to drag near an existing endpoint
                                     if let (measurement, endpointType) = findNearestEndpoint(at: dragValue.startLocation) {
-                                        // Haptic feedback for grabbing an endpoint - like picking up a tape measure end
-                                        let selectionFeedback = UISelectionFeedbackGenerator()
-                                        selectionFeedback.selectionChanged()
+                                        // Start waiting for long press - don't do anything yet!
+                                        waitingForLongPress = true
+                                        pendingEndpointEdit = (measurement, endpointType)
                                         
-                                        // Reset haptic distance tracking for endpoint editing
-                                        lastHapticDistance = 0
-                                        
-                                        // Start editing existing measurement endpoint
-                                        editingMeasurement = measurement
-                                        editingEndpoint = endpointType
-                                        showMagnifier = true
-                                        magnifierPosition = dragValue.location
+                                        // Start timer to detect long press
+                                        longPressTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { _ in
+                                            // Long press detected - start creating new line from endpoint
+                                            isCreatingNewLineFromEndpoint = true
+                                            newLineStartPoint = endpointType == .start ? measurement.startPoint : measurement.endPoint
+                                            waitingForLongPress = false
+                                            
+                                            // Haptic feedback for starting new line creation
+                                            let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                            impactFeedback.impactOccurred()
+                                            
+                                            // Reset haptic distance tracking
+                                            lastHapticDistance = 0
+                                            showMagnifier = true
+                                            magnifierPosition = dragValue.location
+                                        }
                                     }
+                                }
+                                // Handle drag movement during waiting period
+                                else if waitingForLongPress {
+                                    // If user moves too much during wait, cancel long press and start endpoint editing
+                                    if let (measurement, endpointType) = pendingEndpointEdit {
+                                        let distance = sqrt(
+                                            pow(dragValue.location.x - dragValue.startLocation.x, 2) +
+                                            pow(dragValue.location.y - dragValue.startLocation.y, 2)
+                                        )
+                                        
+                                        // If moved more than 20 pixels, cancel long press and start editing
+                                        if distance > 20 {
+                                            longPressTimer?.invalidate()
+                                            waitingForLongPress = false
+                                            
+                                            // Start editing existing measurement endpoint
+                                            let selectionFeedback = UISelectionFeedbackGenerator()
+                                            selectionFeedback.selectionChanged()
+                                            
+                                            // Reset haptic distance tracking for endpoint editing
+                                            lastHapticDistance = 0
+                                            
+                                            editingMeasurement = measurement
+                                            editingEndpoint = endpointType
+                                            showMagnifier = true
+                                            magnifierPosition = dragValue.location
+                                        }
+                                    }
+                                } else if isCreatingNewLineFromEndpoint {
+                                    // Continue creating new line from endpoint
+                                    let pixelLength = sqrt(
+                                        pow(dragValue.location.x - newLineStartPoint.x, 2) +
+                                        pow(dragValue.location.y - newLineStartPoint.y, 2)
+                                    )
+                                    let unitValue = viewModel.convertPixelsToUnit(pixelLength)
+                                    
+                                    // Provide continuous haptic feedback
+                                    provideContinuousHaptic(for: pixelLength)
+                                    
+                                    currentDragLine = MeasurementLine(
+                                        startPoint: newLineStartPoint,
+                                        endPoint: dragValue.location,
+                                        value: unitValue,
+                                        unit: viewModel.selectedUnit,
+                                        label: String(format: "%.1f %@", unitValue, viewModel.selectedUnit.symbol)
+                                    )
+                                    
+                                    magnifierPosition = dragValue.location
                                 } else if let editingMeasurement = editingMeasurement, let editingEndpoint = editingEndpoint {
                                     // Update the endpoint being dragged (preview only, don't save to viewModel yet)
                                     let newStartPoint = editingEndpoint == .start ? dragValue.location : editingMeasurement.startPoint
@@ -91,8 +152,19 @@ struct ImageAnnotationView: View {
                                 }
                             }
                             .onEnded { _ in
-                                // Save the final changes if we were editing
-                                if let editingMeasurement = editingMeasurement, let previewLine = editingPreviewLine {
+                                // Handle new line creation from endpoint
+                                if isCreatingNewLineFromEndpoint, let dragLine = currentDragLine, dragLine.value > 0 {
+                                    // Show measurement input for new line created from endpoint
+                                    tempMeasurementValue = String(format: "%.1f", dragLine.value)
+                                    pendingMeasurement = dragLine
+                                    showingValueInput = true
+                                    
+                                    // Haptic feedback for completing new line creation
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                }
+                                // Save the final changes if we were editing an existing endpoint
+                                else if let editingMeasurement = editingMeasurement, let previewLine = editingPreviewLine {
                                     // Haptic feedback for finishing endpoint edit - like setting down a tape measure
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                     impactFeedback.impactOccurred()
@@ -100,11 +172,19 @@ struct ImageAnnotationView: View {
                                     viewModel.updateMeasurement(editingMeasurement, with: previewLine)
                                 }
                                 
-                                // Reset editing states
+                                // Reset all editing states
                                 editingMeasurement = nil
                                 editingEndpoint = nil
                                 editingPreviewLine = nil
+                                isCreatingNewLineFromEndpoint = false
+                                currentDragLine = nil
                                 showMagnifier = false
+                                
+                                // Clean up long press detection
+                                longPressTimer?.invalidate()
+                                longPressTimer = nil
+                                waitingForLongPress = false
+                                pendingEndpointEdit = nil
                             }
                     )
                     .simultaneousGesture(
@@ -180,7 +260,7 @@ struct ImageAnnotationView: View {
                             }
                             .onEnded { _ in
                                 // Gesture ended
-                                if let dragLine = currentDragLine, dragLine.value >= 10 {
+                                if let dragLine = currentDragLine, dragLine.value > 0 {
                                     // Haptic feedback for completing measurement - like locking a tape measure
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                     impactFeedback.impactOccurred()
@@ -412,7 +492,7 @@ struct MeasurementLineView: View {
                             .font(.appLabelMedium)
                             .foregroundColor(.appTextOnPrimary)
                             .padding(AppSpacing.xs)
-                            .background(Color.buttonDanger.opacity(0.9))
+                            .background(Color.buttonDanger)
                             .clipShape(Circle())
                     }
                     .transition(.scale.combined(with: .opacity))

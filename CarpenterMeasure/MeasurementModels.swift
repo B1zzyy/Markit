@@ -36,6 +36,15 @@ struct SavedAnnotation: Identifiable, Codable {
         self.createdAt = Date()
         self.title = title.isEmpty ? "Annotation \(DateFormatter.shortDate.string(from: Date()))" : title
     }
+    
+    // Initializer for updating existing annotations
+    init(id: UUID, image: UIImage, measurements: [MeasurementLine], createdAt: Date, title: String) {
+        self.id = id
+        self.image = image.jpegData(compressionQuality: 0.8) ?? Data()
+        self.measurements = measurements
+        self.createdAt = createdAt
+        self.title = title
+    }
 }
 
 extension DateFormatter {
@@ -127,6 +136,7 @@ class MeasurementViewModel: ObservableObject {
     @Published var showingCamera = false
     @Published var showingUnitPicker = false
     @Published var savedAnnotations: [SavedAnnotation] = []
+    @Published var currentEditingAnnotation: SavedAnnotation? = nil
     
     // Scale factor for converting pixels to real-world measurements
     // This would need calibration in a real app
@@ -162,6 +172,12 @@ class MeasurementViewModel: ObservableObject {
         measurements.removeAll()
     }
     
+    func goToHomeScreen() {
+        capturedImage = nil
+        measurements.removeAll()
+        currentEditingAnnotation = nil
+    }
+    
     func convertPixelsToUnit(_ pixels: CGFloat) -> Double {
         return Double(pixels) / pixelsPerUnit
     }
@@ -172,10 +188,10 @@ class MeasurementViewModel: ObservableObject {
         clearAllMeasurements()
     }
     
-    func goToHomeScreen() {
-        capturedImage = nil
-        clearAllMeasurements()
-        drawingState = .idle
+    func setImageFromCamera(_ image: UIImage) {
+        // When taking a new photo, clear editing state
+        setImage(image)
+        currentEditingAnnotation = nil
     }
     
     func changeUnit(to newUnit: MeasurementUnit) {
@@ -222,10 +238,28 @@ class MeasurementViewModel: ObservableObject {
     
     // MARK: - Save/Load Annotations
     func saveCurrentAnnotation() {
-        guard let image = capturedImage, !measurements.isEmpty else { return }
+        guard let image = capturedImage else { return }
         
-        let annotation = SavedAnnotation(image: image, measurements: measurements)
-        savedAnnotations.append(annotation)
+        if let editingAnnotation = currentEditingAnnotation {
+            // Update existing annotation
+            if let index = savedAnnotations.firstIndex(where: { $0.id == editingAnnotation.id }) {
+                // Create updated annotation with same ID and creation date but new measurements
+                let updatedAnnotation = SavedAnnotation(
+                    id: editingAnnotation.id,
+                    image: image,
+                    measurements: measurements,
+                    createdAt: editingAnnotation.createdAt,
+                    title: editingAnnotation.title
+                )
+                savedAnnotations[index] = updatedAnnotation
+            }
+        } else {
+            // Create new annotation (only if there are measurements)
+            guard !measurements.isEmpty else { return }
+            let annotation = SavedAnnotation(image: image, measurements: measurements)
+            savedAnnotations.append(annotation)
+        }
+        
         saveToDisk()
     }
     

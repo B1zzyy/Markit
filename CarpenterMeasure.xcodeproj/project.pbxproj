@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		0BFF1F6F2E86DC7500B11E90 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFF1F6E2E86DC7500B11E90 /* DesignSystem.swift */; };
+		0BFF1F722E8734A300B11E90 /* Pow in Frameworks */ = {isa = PBXBuildFile; productRef = 0BFF1F712E8734A300B11E90 /* Pow */; };
 		A1234567890ABCDEF1234567 /* CarpenterMeasureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234568 /* CarpenterMeasureApp.swift */; };
 		A1234567890ABCDEF1234569 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF123456A /* ContentView.swift */; };
 		A1234567890ABCDEF123456B /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF123456C /* CameraView.swift */; };
@@ -35,6 +36,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0BFF1F722E8734A300B11E90 /* Pow in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -125,6 +127,9 @@
 				Base,
 			);
 			mainGroup = A1234567890ABCDEF1234578;
+			packageReferences = (
+				0BFF1F702E8734A300B11E90 /* XCRemoteSwiftPackageReference "Pow" */,
+			);
 			productRefGroup = A123456789ABCDEF123457A /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -366,6 +371,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		0BFF1F702E8734A300B11E90 /* XCRemoteSwiftPackageReference "Pow" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/EmergeTools/Pow";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.5;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		0BFF1F712E8734A300B11E90 /* Pow */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 0BFF1F702E8734A300B11E90 /* XCRemoteSwiftPackageReference "Pow" */;
+			productName = Pow;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = A1234567890ABCDEF1234580 /* Project object */;
 }
