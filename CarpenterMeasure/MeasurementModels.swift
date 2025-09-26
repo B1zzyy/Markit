@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 // MARK: - Measurement Units
-enum MeasurementUnit: String, CaseIterable {
+enum MeasurementUnit: String, CaseIterable, Codable {
     case millimeters = "mm"
     case centimeters = "cm"
     case inches = "in"
@@ -21,14 +21,75 @@ enum MeasurementUnit: String, CaseIterable {
     }
 }
 
+// MARK: - Saved Annotation
+struct SavedAnnotation: Identifiable, Codable {
+    let id: UUID
+    let image: Data
+    let measurements: [MeasurementLine]
+    let createdAt: Date
+    let title: String
+    
+    init(image: UIImage, measurements: [MeasurementLine], title: String = "") {
+        self.id = UUID()
+        self.image = image.jpegData(compressionQuality: 0.8) ?? Data()
+        self.measurements = measurements
+        self.createdAt = Date()
+        self.title = title.isEmpty ? "Annotation \(DateFormatter.shortDate.string(from: Date()))" : title
+    }
+}
+
+extension DateFormatter {
+    static let shortDate: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+
 // MARK: - Measurement Line
-struct MeasurementLine: Identifiable {
-    let id = UUID()
+struct MeasurementLine: Identifiable, Codable {
+    let id: UUID
     var startPoint: CGPoint
     var endPoint: CGPoint
     var value: Double
     var unit: MeasurementUnit
     var label: String
+    
+    init(startPoint: CGPoint, endPoint: CGPoint, value: Double, unit: MeasurementUnit, label: String) {
+        self.id = UUID()
+        self.startPoint = startPoint
+        self.endPoint = endPoint
+        self.value = value
+        self.unit = unit
+        self.label = label
+    }
+    
+    // MARK: - Codable Implementation
+    private enum CodingKeys: String, CodingKey {
+        case id, startPoint, endPoint, value, unit, label
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        startPoint = try container.decode(CGPoint.self, forKey: .startPoint)
+        endPoint = try container.decode(CGPoint.self, forKey: .endPoint)
+        value = try container.decode(Double.self, forKey: .value)
+        unit = try container.decode(MeasurementUnit.self, forKey: .unit)
+        label = try container.decode(String.self, forKey: .label)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(startPoint, forKey: .startPoint)
+        try container.encode(endPoint, forKey: .endPoint)
+        try container.encode(value, forKey: .value)
+        try container.encode(unit, forKey: .unit)
+        try container.encode(label, forKey: .label)
+    }
     
     var length: CGFloat {
         let dx = endPoint.x - startPoint.x
@@ -61,14 +122,19 @@ enum DrawingState {
 class MeasurementViewModel: ObservableObject {
     @Published var capturedImage: UIImage?
     @Published var measurements: [MeasurementLine] = []
-    @Published var selectedUnit: MeasurementUnit = .centimeters
+    @Published var selectedUnit: MeasurementUnit = .millimeters
     @Published var drawingState: DrawingState = .idle
     @Published var showingCamera = false
     @Published var showingUnitPicker = false
+    @Published var savedAnnotations: [SavedAnnotation] = []
     
     // Scale factor for converting pixels to real-world measurements
     // This would need calibration in a real app
     @Published var pixelsPerUnit: Double = 10.0 // 10 pixels = 1 unit
+    
+    init() {
+        loadSavedAnnotations()
+    }
     
     func addMeasurement(_ line: MeasurementLine) {
         measurements.append(line)
@@ -152,6 +218,45 @@ class MeasurementViewModel: ObservableObject {
         case .inches:
             return valueInMM / 25.4
         }
+    }
+    
+    // MARK: - Save/Load Annotations
+    func saveCurrentAnnotation() {
+        guard let image = capturedImage, !measurements.isEmpty else { return }
+        
+        let annotation = SavedAnnotation(image: image, measurements: measurements)
+        savedAnnotations.append(annotation)
+        saveToDisk()
+    }
+    
+    private func saveToDisk() {
+        do {
+            let data = try JSONEncoder().encode(savedAnnotations)
+            let url = getDocumentsDirectory().appendingPathComponent("savedAnnotations.json")
+            try data.write(to: url)
+        } catch {
+            print("Failed to save annotations: \(error)")
+        }
+    }
+    
+    private func loadSavedAnnotations() {
+        do {
+            let url = getDocumentsDirectory().appendingPathComponent("savedAnnotations.json")
+            let data = try Data(contentsOf: url)
+            savedAnnotations = try JSONDecoder().decode([SavedAnnotation].self, from: data)
+        } catch {
+            print("Failed to load annotations: \(error)")
+            savedAnnotations = []
+        }
+    }
+    
+    private func getDocumentsDirectory() -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+    }
+    
+    func deleteSavedAnnotation(_ annotation: SavedAnnotation) {
+        savedAnnotations.removeAll { $0.id == annotation.id }
+        saveToDisk()
     }
 }
 

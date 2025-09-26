@@ -1,4 +1,4 @@
-# Markit - Carpenter Measure iOS App
+# Markit - Markit iOS App
 
 A minimalist iOS app designed for carpenters to take photos and add precise measurements to their work. Built with SwiftUI.
 

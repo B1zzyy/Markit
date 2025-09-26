@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0BFF1F6F2E86DC7500B11E90 /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BFF1F6E2E86DC7500B11E90 /* DesignSystem.swift */; };
 		A1234567890ABCDEF1234567 /* CarpenterMeasureApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF1234568 /* CarpenterMeasureApp.swift */; };
 		A1234567890ABCDEF1234569 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF123456A /* ContentView.swift */; };
 		A1234567890ABCDEF123456B /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1234567890ABCDEF123456C /* CameraView.swift */; };
@@ -17,6 +18,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0BFF1F6E2E86DC7500B11E90 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF1234568 /* CarpenterMeasureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarpenterMeasureApp.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF123456A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF123456C /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
@@ -52,6 +54,7 @@
 			children = (
 				A1234567890ABCDEF1234568 /* CarpenterMeasureApp.swift */,
 				A1234567890ABCDEF123456A /* ContentView.swift */,
+				0BFF1F6E2E86DC7500B11E90 /* DesignSystem.swift */,
 				A1234567890ABCDEF123456C /* CameraView.swift */,
 				A1234567890ABCDEF123456E /* ImageAnnotationView.swift */,
 				A1234567890ABCDEF1234570 /* MeasurementModels.swift */,
@@ -148,6 +151,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0BFF1F6F2E86DC7500B11E90 /* DesignSystem.swift in Sources */,
 				A1234567890ABCDEF1234569 /* ContentView.swift in Sources */,
 				A1234567890ABCDEF123456B /* CameraView.swift in Sources */,
 				A1234567890ABCDEF123456D /* ImageAnnotationView.swift in Sources */,

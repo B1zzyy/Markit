@@ -5,7 +5,7 @@
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to the camera to take photos for measurements.</string>
 	<key>CFBundleDisplayName</key>
-	<string>Carpenter Measure</string>
+	<string>Markit</string>
 	<key>CFBundleName</key>
 	<string>CarpenterMeasure</string>
 	<key>UILaunchScreen</key>

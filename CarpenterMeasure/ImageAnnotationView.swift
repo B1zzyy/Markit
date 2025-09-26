@@ -249,7 +249,7 @@ struct ImageAnnotationView: View {
             }
             .clipped()
         }
-        .alert("Enter Measurement Value", isPresented: $showingValueInput) {
+        .alert("Measurement", isPresented: $showingValueInput) {
             TextField("Value", text: $tempMeasurementValue)
                 .keyboardType(.decimalPad)
             
@@ -277,8 +277,6 @@ struct ImageAnnotationView: View {
                 pendingMeasurement = nil
                 tempMeasurementValue = ""
             }
-        } message: {
-            Text("Enter the actual measurement value for this line")
         }
     }
     
@@ -366,17 +364,17 @@ struct MeasurementLineView: View {
                 path.move(to: measurement.startPoint)
                 path.addLine(to: measurement.endPoint)
             }
-            .stroke(Color.red, lineWidth: 3)
+            .stroke(Color.measurementLine, lineWidth: 3)
             
             // Start point indicator
             Circle()
-                .fill(Color.red)
+                .fill(Color.measurementLine)
                 .frame(width: 12, height: 12)
                 .position(measurement.startPoint)
             
             // End point indicator
             Circle()
-                .fill(Color.red)
+                .fill(Color.measurementLine)
                 .frame(width: 12, height: 12)
                 .position(measurement.endPoint)
             
@@ -384,12 +382,12 @@ struct MeasurementLineView: View {
             HStack(spacing: 4) {
                 // Main measurement label
                 Text(measurement.label)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.red)
-                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .font(.appMeasurementValue)
+                    .foregroundColor(.appTextOnPrimary)
+                    .padding(.horizontal, AppSpacing.sm)
+                    .padding(.vertical, AppSpacing.xs)
+                    .background(Color.measurementLabel)
+                    .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm))
                     .onTapGesture {
                         // Hide delete button if showing
                         if showingDeleteButton {
@@ -411,10 +409,10 @@ struct MeasurementLineView: View {
                         showingDeleteConfirmation = true
                     }) {
                         Image(systemName: "trash.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white)
-                            .padding(6)
-                            .background(Color.red.opacity(0.9))
+                            .font(.appLabelMedium)
+                            .foregroundColor(.appTextOnPrimary)
+                            .padding(AppSpacing.xs)
+                            .background(Color.buttonDanger.opacity(0.9))
                             .clipShape(Circle())
                     }
                     .transition(.scale.combined(with: .opacity))
