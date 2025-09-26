@@ -51,13 +51,28 @@ struct ContentView: View {
                     Button(action: {
                         viewModel.showingUnitPicker = true
                     }) {
-                        Text(viewModel.selectedUnit.symbol)
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.green)
-                            .clipShape(Circle())
+                        VStack(spacing: 2) {
+                            Text(viewModel.selectedUnit.symbol)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.white)
+                            Text("UNIT")
+                                .font(.system(size: 8, weight: .medium))
+                                .foregroundColor(.white.opacity(0.8))
+                        }
+                        .frame(width: 44, height: 44)
+                        .background(
+                            LinearGradient(
+                                colors: [Color.green, Color.green.opacity(0.8)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        )
+                        .shadow(color: .green.opacity(0.3), radius: 3, x: 0, y: 2)
                     }
                 }
                 .padding(.horizontal, 20)
@@ -149,15 +164,15 @@ struct ContentView: View {
         .sheet(isPresented: $viewModel.showingCamera) {
             CameraView(viewModel: viewModel)
         }
-        .actionSheet(isPresented: $viewModel.showingUnitPicker) {
-            ActionSheet(
-                title: Text("Select Measurement Unit"),
-                buttons: MeasurementUnit.allCases.map { unit in
-                    .default(Text(unit.displayName)) {
-                        viewModel.selectedUnit = unit
-                    }
-                } + [.cancel()]
-            )
+        .confirmationDialog("Select Measurement Unit", isPresented: $viewModel.showingUnitPicker, titleVisibility: .visible) {
+            ForEach(MeasurementUnit.allCases, id: \.self) { unit in
+                Button(unit.displayName) {
+                    viewModel.changeUnit(to: unit)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Choose the unit for your measurements. Existing measurements will be converted.")
         }
     }
 }

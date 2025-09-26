@@ -78,6 +78,20 @@ class MeasurementViewModel: ObservableObject {
         measurements.removeAll { $0.id == line.id }
     }
     
+    func updateMeasurement(_ oldMeasurement: MeasurementLine, with newMeasurement: MeasurementLine) {
+        if let index = measurements.firstIndex(where: { $0.id == oldMeasurement.id }) {
+            // Create a new measurement with the same ID by copying all properties
+            let updatedMeasurement = MeasurementLine(
+                startPoint: newMeasurement.startPoint,
+                endPoint: newMeasurement.endPoint,
+                value: newMeasurement.value,
+                unit: newMeasurement.unit,
+                label: newMeasurement.label
+            )
+            measurements[index] = updatedMeasurement
+        }
+    }
+    
     func clearAllMeasurements() {
         measurements.removeAll()
     }
@@ -96,6 +110,48 @@ class MeasurementViewModel: ObservableObject {
         capturedImage = nil
         clearAllMeasurements()
         drawingState = .idle
+    }
+    
+    func changeUnit(to newUnit: MeasurementUnit) {
+        let oldUnit = selectedUnit
+        selectedUnit = newUnit
+        
+        // Convert existing measurements to new unit
+        for i in 0..<measurements.count {
+            let oldValue = measurements[i].value
+            let convertedValue = convertValue(oldValue, from: oldUnit, to: newUnit)
+            
+            measurements[i] = MeasurementLine(
+                startPoint: measurements[i].startPoint,
+                endPoint: measurements[i].endPoint,
+                value: convertedValue,
+                unit: newUnit,
+                label: String(format: "%.1f %@", convertedValue, newUnit.symbol)
+            )
+        }
+    }
+    
+    private func convertValue(_ value: Double, from fromUnit: MeasurementUnit, to toUnit: MeasurementUnit) -> Double {
+        // Convert to millimeters first (base unit)
+        let valueInMM: Double
+        switch fromUnit {
+        case .millimeters:
+            valueInMM = value
+        case .centimeters:
+            valueInMM = value * 10.0
+        case .inches:
+            valueInMM = value * 25.4
+        }
+        
+        // Convert from millimeters to target unit
+        switch toUnit {
+        case .millimeters:
+            return valueInMM
+        case .centimeters:
+            return valueInMM / 10.0
+        case .inches:
+            return valueInMM / 25.4
+        }
     }
 }
 
