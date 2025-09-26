@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 
 // MARK: - Measurement Units
 enum MeasurementUnit: String, CaseIterable {
@@ -86,7 +87,34 @@ class MeasurementViewModel: ObservableObject {
     }
     
     func setImage(_ image: UIImage) {
-        capturedImage = image
+        // Fix image orientation to avoid coordinate issues
+        capturedImage = image.fixedOrientation()
         clearAllMeasurements()
+    }
+    
+    func goToHomeScreen() {
+        capturedImage = nil
+        clearAllMeasurements()
+        drawingState = .idle
+    }
+}
+
+// MARK: - UIImage Extension for Orientation Fix
+extension UIImage {
+    func fixedOrientation() -> UIImage {
+        // If image is already in correct orientation, return as-is
+        if imageOrientation == .up {
+            return self
+        }
+        
+        // Create graphics context
+        UIGraphicsBeginImageContextWithOptions(size, false, scale)
+        defer { UIGraphicsEndImageContext() }
+        
+        // Draw image with correct orientation
+        draw(in: CGRect(origin: .zero, size: size))
+        
+        // Get the correctly oriented image
+        return UIGraphicsGetImageFromCurrentImageContext() ?? self
     }
 }

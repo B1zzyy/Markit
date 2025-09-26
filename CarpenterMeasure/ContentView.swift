@@ -8,15 +8,36 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 // Top toolbar
                 HStack {
+                    // Left button - Camera or Home
                     Button(action: {
-                        viewModel.showingCamera = true
+                        if viewModel.capturedImage != nil {
+                            // Go back to home screen
+                            viewModel.goToHomeScreen()
+                        } else {
+                            // Open camera
+                            viewModel.showingCamera = true
+                        }
                     }) {
-                        Image(systemName: "camera.fill")
+                        Image(systemName: viewModel.capturedImage != nil ? "house.fill" : "camera.fill")
                             .font(.title2)
                             .foregroundColor(.white)
                             .frame(width: 44, height: 44)
-                            .background(Color.blue)
+                            .background(viewModel.capturedImage != nil ? Color.orange : Color.blue)
                             .clipShape(Circle())
+                    }
+                    
+                    // Camera button (when image is present)
+                    if viewModel.capturedImage != nil {
+                        Button(action: {
+                            viewModel.showingCamera = true
+                        }) {
+                            Image(systemName: "camera.fill")
+                                .font(.title2)
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Color.blue)
+                                .clipShape(Circle())
+                        }
                     }
                     
                     Spacer()

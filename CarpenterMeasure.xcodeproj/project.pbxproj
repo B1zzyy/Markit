@@ -17,7 +17,6 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A1234567890ABCDEF1234575 /* CarpenterMeasure.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CarpenterMeasure.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1234567890ABCDEF1234568 /* CarpenterMeasureApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CarpenterMeasureApp.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF123456A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF123456C /* CameraView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
@@ -25,6 +24,7 @@
 		A1234567890ABCDEF1234570 /* MeasurementModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeasurementModels.swift; sourceTree = "<group>"; };
 		A1234567890ABCDEF1234572 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1234567890ABCDEF1234574 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A1234567890ABCDEF1234575 /* CarpenterMeasure.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CarpenterMeasure.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A1234567890ABCDEF1234576 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -47,14 +47,6 @@
 			);
 			sourceTree = "<group>";
 		};
-		A123456789ABCDEF123457A /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				A1234567890ABCDEF1234575 /* CarpenterMeasure.app */,
-			);
-			name = Products;
-			sourceTree = "<group>";
-		};
 		A1234567890ABCDEF1234579 /* CarpenterMeasure */ = {
 			isa = PBXGroup;
 			children = (
@@ -68,6 +60,14 @@
 				A123456789ABCDEF123457B /* Preview Content */,
 			);
 			path = CarpenterMeasure;
+			sourceTree = "<group>";
+		};
+		A123456789ABCDEF123457A /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A1234567890ABCDEF1234575 /* CarpenterMeasure.app */,
+			);
+			name = Products;
 			sourceTree = "<group>";
 		};
 		A123456789ABCDEF123457B /* Preview Content */ = {
@@ -286,6 +286,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CarpenterMeasure/Preview Content\"";
+				DEVELOPMENT_TEAM = 7L9YT2TMVS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CarpenterMeasure/Info.plist;
@@ -316,6 +317,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CarpenterMeasure/Preview Content\"";
+				DEVELOPMENT_TEAM = 7L9YT2TMVS;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = CarpenterMeasure/Info.plist;
@@ -341,20 +343,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A1234567890ABCDEF1234581 /* Build configuration list for PBXProject "CarpenterMeasure" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A1234567890ABCDEF1234582 /* Debug */,
-				A1234567890ABCDEF1234583 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A1234567890ABCDEF123457D /* Build configuration list for PBXNativeTarget "CarpenterMeasure" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				A1234567890ABCDEF1234584 /* Debug */,
 				A1234567890ABCDEF1234585 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A1234567890ABCDEF1234581 /* Build configuration list for PBXProject "CarpenterMeasure" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A1234567890ABCDEF1234582 /* Debug */,
+				A1234567890ABCDEF1234583 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
