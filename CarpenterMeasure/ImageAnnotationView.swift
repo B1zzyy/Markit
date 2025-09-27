@@ -22,9 +22,16 @@ struct ImageAnnotationView: View {
     @State private var lastProximityHapticTime: Date = Date.distantPast
     @State private var isSnappedToEndpoint = false
     @State private var snappedEndpointPosition: CGPoint?
+    @State private var editingAngle: AngleMeasurement?
+    @State private var editingAnglePoint: AnglePointType?
+    @State private var editingAnglePreview: AngleMeasurement?
     
     enum EndpointType {
         case start, end
+    }
+    
+    enum AnglePointType {
+        case center, firstEnd, secondEnd
     }
     
     var body: some View {
@@ -50,9 +57,20 @@ struct ImageAnnotationView: View {
                         // Combined gesture for both creating new measurements and editing endpoints
                         DragGesture(minimumDistance: 0)
                             .onChanged { dragValue in
-                                if editingMeasurement == nil && currentDragLine == nil && !isCreatingNewLineFromEndpoint && !waitingForLongPress {
-                                    // Check if we're starting to drag near an existing endpoint
-                                    if let (measurement, endpointType) = findNearestEndpoint(at: dragValue.startLocation) {
+                                if editingMeasurement == nil && currentDragLine == nil && !isCreatingNewLineFromEndpoint && !waitingForLongPress && editingAngle == nil {
+                                    // Check if we're starting to drag near an angle point first
+                                    if let (angle, anglePointType) = findNearestAnglePoint(at: dragValue.startLocation) {
+                                        // Start editing angle point
+                                        let selectionFeedback = UISelectionFeedbackGenerator()
+                                        selectionFeedback.selectionChanged()
+                                        
+                                        editingAngle = angle
+                                        editingAnglePoint = anglePointType
+                                        showMagnifier = true
+                                        magnifierPosition = dragValue.location
+                                    }
+                                    // Check if we're starting to drag near an existing measurement endpoint
+                                    else if let (measurement, endpointType) = findNearestEndpoint(at: dragValue.startLocation) {
                                         // Start waiting for long press - don't do anything yet!
                                         waitingForLongPress = true
                                         pendingEndpointEdit = (measurement, endpointType)
@@ -162,6 +180,49 @@ struct ImageAnnotationView: View {
                                     
                                     // Update magnifier position to snapped position
                                     magnifierPosition = snappedPosition
+                                } else if let editingAngle = editingAngle, let editingAnglePoint = editingAnglePoint {
+                                    // Check for snapping to existing endpoints and get the final position
+                                    let snappedPosition = checkAndSnapToEndpoint(at: dragValue.location)
+                                    
+                                    // Update the angle point being dragged
+                                    var newCenterPoint = editingAngle.centerPoint
+                                    var newFirstLineEnd = editingAngle.firstLineEnd
+                                    var newSecondLineEnd = editingAngle.secondLineEnd
+                                    
+                                    switch editingAnglePoint {
+                                    case .center:
+                                        // Move entire angle - offset all points by the same amount
+                                        let deltaX = snappedPosition.x - editingAngle.centerPoint.x
+                                        let deltaY = snappedPosition.y - editingAngle.centerPoint.y
+                                        newCenterPoint = snappedPosition
+                                        newFirstLineEnd = CGPoint(x: editingAngle.firstLineEnd.x + deltaX, y: editingAngle.firstLineEnd.y + deltaY)
+                                        newSecondLineEnd = CGPoint(x: editingAngle.secondLineEnd.x + deltaX, y: editingAngle.secondLineEnd.y + deltaY)
+                                    case .firstEnd:
+                                        newFirstLineEnd = snappedPosition
+                                    case .secondEnd:
+                                        newSecondLineEnd = snappedPosition
+                                    }
+                                    
+                                    // Calculate new angle in degrees
+                                    let angle1 = atan2(newFirstLineEnd.y - newCenterPoint.y, newFirstLineEnd.x - newCenterPoint.x)
+                                    let angle2 = atan2(newSecondLineEnd.y - newCenterPoint.y, newSecondLineEnd.x - newCenterPoint.x)
+                                    var angleDiff = angle2 - angle1
+                                    
+                                    // Normalize angle to 0-360 degrees
+                                    if angleDiff < 0 { angleDiff += 2 * .pi }
+                                    if angleDiff > .pi { angleDiff = 2 * .pi - angleDiff }
+                                    let degrees = angleDiff * 180 / .pi
+                                    
+                                    // Create preview angle
+                                    editingAnglePreview = AngleMeasurement(
+                                        centerPoint: newCenterPoint,
+                                        firstLineEnd: newFirstLineEnd,
+                                        secondLineEnd: newSecondLineEnd,
+                                        degrees: degrees
+                                    )
+                                    
+                                    // Update magnifier position to snapped position
+                                    magnifierPosition = snappedPosition
                                 }
                             }
                             .onEnded { _ in
@@ -189,11 +250,22 @@ struct ImageAnnotationView: View {
                                     
                                     viewModel.updateMeasurement(editingMeasurement, with: previewLine)
                                 }
+                                // Save the final changes if we were editing an angle
+                                else if let editingAngle = editingAngle, let previewAngle = editingAnglePreview {
+                                    // Haptic feedback for finishing angle edit
+                                    let impactFeedback = UIImpactFeedbackGenerator(style: .light)
+                                    impactFeedback.impactOccurred()
+                                    
+                                    viewModel.updateAngleMeasurement(editingAngle, with: previewAngle)
+                                }
                                 
                                 // Reset all editing states
                                 editingMeasurement = nil
                                 editingEndpoint = nil
                                 editingPreviewLine = nil
+                                editingAngle = nil
+                                editingAnglePoint = nil
+                                editingAnglePreview = nil
                                 isCreatingNewLineFromEndpoint = false
                                 currentDragLine = nil
                                 showMagnifier = false
@@ -335,10 +407,36 @@ struct ImageAnnotationView: View {
                     }
                 }
                 
+                // Angle measurements overlay
+                ForEach(viewModel.angleMeasurements) { angle in
+                    // Hide the angle being edited, show preview instead
+                    if editingAngle?.id != angle.id {
+                        AngleMeasurementView(
+                            angle: angle,
+                            onDelete: {
+                                viewModel.removeAngleMeasurement(angle)
+                            },
+                            onEdit: { updatedAngle in
+                                viewModel.updateAngleMeasurement(angle, with: updatedAngle)
+                            }
+                        )
+                    }
+                }
+                
                 // Show preview of measurement being edited
                 if let previewLine = editingPreviewLine {
                     MeasurementLineView(
                         measurement: previewLine,
+                        onDelete: {},
+                        onEdit: { _ in }
+                    )
+                    .opacity(0.8)
+                }
+                
+                // Show preview of angle being edited
+                if let previewAngle = editingAnglePreview {
+                    AngleMeasurementView(
+                        angle: previewAngle,
                         onDelete: {},
                         onEdit: { _ in }
                     )
@@ -363,7 +461,9 @@ struct ImageAnnotationView: View {
                         imageSize: geometry.size,
                         screenSize: geometry.size,
                         measurements: viewModel.measurements,
-                        excludeMeasurement: editingMeasurement
+                        excludeMeasurement: editingMeasurement,
+                        angleMeasurements: viewModel.angleMeasurements,
+                        excludeAngle: editingAngle
                     )
                     .position(
                         x: geometry.size.width - 60,
@@ -418,6 +518,38 @@ struct ImageAnnotationView: View {
                 return (measurement, .start)
             } else if endDistance <= threshold {
                 return (measurement, .end)
+            }
+        }
+        return nil
+    }
+    
+    private func findNearestAnglePoint(at point: CGPoint, threshold: CGFloat = 30) -> (AngleMeasurement, AnglePointType)? {
+        for angle in viewModel.angleMeasurements {
+            // Check center point
+            let centerDistance = sqrt(
+                pow(point.x - angle.centerPoint.x, 2) +
+                pow(point.y - angle.centerPoint.y, 2)
+            )
+            if centerDistance <= threshold {
+                return (angle, .center)
+            }
+            
+            // Check first line end
+            let firstEndDistance = sqrt(
+                pow(point.x - angle.firstLineEnd.x, 2) +
+                pow(point.y - angle.firstLineEnd.y, 2)
+            )
+            if firstEndDistance <= threshold {
+                return (angle, .firstEnd)
+            }
+            
+            // Check second line end
+            let secondEndDistance = sqrt(
+                pow(point.x - angle.secondLineEnd.x, 2) +
+                pow(point.y - angle.secondLineEnd.y, 2)
+            )
+            if secondEndDistance <= threshold {
+                return (angle, .secondEnd)
             }
         }
         return nil
@@ -529,7 +661,7 @@ struct MeasurementLineView: View {
             // Measurement label with edit/delete functionality
             HStack(spacing: 4) {
                 // Main measurement label
-                Text(measurement.label)
+            Text(measurement.label)
                     .font(.appMeasurementValue)
                     .foregroundColor(.appTextOnPrimary)
                     .padding(.horizontal, AppSpacing.sm)
@@ -566,10 +698,10 @@ struct MeasurementLineView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
             }
-            .position(
-                x: measurement.midPoint.x,
-                y: measurement.midPoint.y - 20
-            )
+                .position(
+                    x: measurement.midPoint.x,
+                    y: measurement.midPoint.y - 20
+                )
             .animation(.easeInOut(duration: 0.2), value: showingDeleteButton)
         }
         .alert("Delete Measurement", isPresented: $showingDeleteConfirmation) {
@@ -601,8 +733,6 @@ struct MeasurementLineView: View {
                 }
                 editValue = ""
             }
-        } message: {
-            Text("Enter the new measurement value for this line")
         }
     }
 }
@@ -614,6 +744,8 @@ struct MagnifierView: View {
     let screenSize: CGSize
     let measurements: [MeasurementLine]
     let excludeMeasurement: MeasurementLine?
+    let angleMeasurements: [AngleMeasurement]
+    let excludeAngle: AngleMeasurement?
     
     private var magnifierSize: CGFloat {
         return 100 // Fixed size, simple
@@ -638,10 +770,12 @@ struct MagnifierView: View {
                 imageSize: imageSize,
                 magnifierSize: magnifierSize,
                 measurements: measurements,
-                excludeMeasurement: excludeMeasurement
+                excludeMeasurement: excludeMeasurement,
+                angleMeasurements: angleMeasurements,
+                excludeAngle: excludeAngle
             )
             .frame(width: magnifierSize, height: magnifierSize)
-            .clipShape(Circle())
+                        .clipShape(Circle())
             
             // Crosshair dot
             Circle()
@@ -658,6 +792,8 @@ struct MagnifiedImageView: UIViewRepresentable {
     let magnifierSize: CGFloat
     let measurements: [MeasurementLine]
     let excludeMeasurement: MeasurementLine?
+    let angleMeasurements: [AngleMeasurement]
+    let excludeAngle: AngleMeasurement?
     
     func makeUIView(context: Context) -> MagnifyImageUIView {
         let view = MagnifyImageUIView()
@@ -670,6 +806,8 @@ struct MagnifiedImageView: UIViewRepresentable {
         uiView.touchPoint = touchPoint
         uiView.measurements = measurements
         uiView.excludeMeasurement = excludeMeasurement
+        uiView.angleMeasurements = angleMeasurements
+        uiView.excludeAngle = excludeAngle
         uiView.setNeedsDisplay()
     }
 }
@@ -680,6 +818,8 @@ class MagnifyImageUIView: UIView {
     var imageSize: CGSize = .zero
     var measurements: [MeasurementLine] = []
     var excludeMeasurement: MeasurementLine?
+    var angleMeasurements: [AngleMeasurement] = []
+    var excludeAngle: AngleMeasurement?
     
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
@@ -705,6 +845,7 @@ class MagnifyImageUIView: UIView {
         
         // Draw measurement lines in the magnifier
         drawMeasurementLines(in: context)
+        drawAngleMeasurements(in: context)
         
         // Restore context state
         context.restoreGState()
@@ -779,6 +920,204 @@ class MagnifyImageUIView: UIView {
                 height: endpointRadius * 2
             ))
         }
+    }
+    
+    private func drawAngleMeasurements(in context: CGContext) {
+        // Draw existing angle measurements so they appear in the magnifier
+        // Exclude the angle currently being edited to avoid confusion
+        for angle in angleMeasurements {
+            // Skip the angle that's currently being edited
+            if let excludeAngle = excludeAngle, angle.id == excludeAngle.id {
+                continue
+            }
+            
+            // Set line appearance for dashed white lines
+            context.setStrokeColor(UIColor.white.cgColor)
+            context.setLineWidth(2.0)
+            context.setLineCap(.round)
+            context.setLineDash(phase: 0, lengths: [6, 3]) // Dashed pattern
+            
+            // Draw first line from center to first end
+            context.move(to: angle.centerPoint)
+            context.addLine(to: angle.firstLineEnd)
+            context.strokePath()
+            
+            // Draw second line from center to second end
+            context.move(to: angle.centerPoint)
+            context.addLine(to: angle.secondLineEnd)
+            context.strokePath()
+            
+            // Reset line dash for the arc
+            context.setLineDash(phase: 0, lengths: [])
+            
+            // Draw arc - simplified version for magnifier
+            context.setStrokeColor(UIColor.yellow.cgColor)
+            context.setLineWidth(2.0)
+            
+            let radius: CGFloat = 30
+            let angle1 = atan2(angle.firstLineEnd.y - angle.centerPoint.y, angle.firstLineEnd.x - angle.centerPoint.x)
+            let angle2 = atan2(angle.secondLineEnd.y - angle.centerPoint.y, angle.secondLineEnd.x - angle.centerPoint.x)
+            
+            // Draw arc from angle1 to angle2
+            context.addArc(center: angle.centerPoint, radius: radius, startAngle: angle1, endAngle: angle2, clockwise: false)
+            context.strokePath()
+            
+            // Draw center point
+            context.setFillColor(UIColor.red.cgColor)
+            let centerRadius: CGFloat = 2.0
+            context.fillEllipse(in: CGRect(
+                x: angle.centerPoint.x - centerRadius,
+                y: angle.centerPoint.y - centerRadius,
+                width: centerRadius * 2,
+                height: centerRadius * 2
+            ))
+        }
+    }
+}
+
+struct AngleMeasurementView: View {
+    let angle: AngleMeasurement
+    let onDelete: () -> Void
+    let onEdit: (AngleMeasurement) -> Void
+    
+    @State private var showingDeleteButton = false
+    @State private var showingDeleteConfirmation = false
+    @State private var showingEditDialog = false
+    @State private var editValue = ""
+    
+    var body: some View {
+        ZStack {
+            // First dashed line (white)
+            Path { path in
+                path.move(to: angle.centerPoint)
+                path.addLine(to: angle.firstLineEnd)
+            }
+            .stroke(Color.white, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
+            
+            // Second dashed line (white)
+            Path { path in
+                path.move(to: angle.centerPoint)
+                path.addLine(to: angle.secondLineEnd)
+            }
+            .stroke(Color.white, style: StrokeStyle(lineWidth: 3, dash: [8, 4]))
+            
+            // Arc showing the angle (make it more visible)
+            AngleArcView(
+                centerPoint: angle.centerPoint,
+                firstLineEnd: angle.firstLineEnd,
+                secondLineEnd: angle.secondLineEnd,
+                radius: 50
+            )
+            .stroke(Color.yellow, lineWidth: 3) // Use yellow to make it more visible
+            
+            // Center point indicator (for debugging)
+            Circle()
+                .fill(Color.red)
+                .frame(width: 8, height: 8)
+                .position(angle.centerPoint)
+            
+            // Angle label
+            Text(angle.label)
+                .font(.appLabelMedium)
+                .foregroundColor(.black)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.yellow)
+                .clipShape(RoundedRectangle(cornerRadius: AppRadius.sm))
+                .position(
+                    x: angle.centerPoint.x + 35,
+                    y: angle.centerPoint.y - 35
+                )
+                .onTapGesture {
+                    editValue = String(format: "%.1f", angle.degrees)
+                    showingEditDialog = true
+                }
+                .onLongPressGesture {
+                    showingDeleteButton.toggle()
+                }
+            
+            // Delete button (appears on long press)
+            if showingDeleteButton {
+                Button(action: {
+                    showingDeleteConfirmation = true
+                }) {
+                    Image(systemName: "trash.fill")
+                        .font(.appLabelMedium)
+                        .foregroundColor(.white)
+                        .padding(AppSpacing.xs)
+                        .background(Color.buttonDanger)
+                        .clipShape(Circle())
+                }
+                .transition(.scale.combined(with: .opacity))
+                .position(
+                    x: angle.centerPoint.x,
+                    y: angle.centerPoint.y - 40
+                )
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showingDeleteButton)
+        .alert("Delete Angle", isPresented: $showingDeleteConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                onDelete()
+            }
+        } message: {
+            Text("Are you sure you want to delete this angle measurement?")
+        }
+        .alert("Edit Angle", isPresented: $showingEditDialog) {
+            TextField("Degrees", text: $editValue)
+                .keyboardType(.decimalPad)
+            
+            Button("Cancel") {
+                editValue = ""
+            }
+            
+            Button("Save") {
+                if let degrees = Double(editValue) {
+                    let updatedAngle = AngleMeasurement(
+                        centerPoint: angle.centerPoint,
+                        firstLineEnd: angle.firstLineEnd,
+                        secondLineEnd: angle.secondLineEnd,
+                        degrees: degrees
+                    )
+                    onEdit(updatedAngle)
+                }
+                editValue = ""
+            }
+        }
+    }
+    
+    private func averageAngle(_ angle: AngleMeasurement) -> Double {
+        let angle1 = atan2(angle.firstLineEnd.y - angle.centerPoint.y, angle.firstLineEnd.x - angle.centerPoint.x)
+        let angle2 = atan2(angle.secondLineEnd.y - angle.centerPoint.y, angle.secondLineEnd.x - angle.centerPoint.x)
+        return (angle1 + angle2) / 2
+    }
+}
+
+struct AngleArcView: Shape {
+    let centerPoint: CGPoint
+    let firstLineEnd: CGPoint
+    let secondLineEnd: CGPoint
+    let radius: CGFloat
+    
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        
+        let angle1 = atan2(firstLineEnd.y - centerPoint.y, firstLineEnd.x - centerPoint.x)
+        let angle2 = atan2(secondLineEnd.y - centerPoint.y, secondLineEnd.x - centerPoint.x)
+        
+        let startAngle = Angle(radians: angle1)
+        let endAngle = Angle(radians: angle2)
+        
+        path.addArc(
+            center: centerPoint,
+            radius: radius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: false
+        )
+        
+        return path
     }
 }
 

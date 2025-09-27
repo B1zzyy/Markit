@@ -26,22 +26,25 @@ struct SavedAnnotation: Identifiable, Codable {
     let id: UUID
     let image: Data
     let measurements: [MeasurementLine]
+    let angleMeasurements: [AngleMeasurement]
     let createdAt: Date
     let title: String
     
-    init(image: UIImage, measurements: [MeasurementLine], title: String = "") {
+    init(image: UIImage, measurements: [MeasurementLine], angleMeasurements: [AngleMeasurement] = [], title: String = "") {
         self.id = UUID()
         self.image = image.jpegData(compressionQuality: 0.8) ?? Data()
         self.measurements = measurements
+        self.angleMeasurements = angleMeasurements
         self.createdAt = Date()
         self.title = title.isEmpty ? "Annotation \(DateFormatter.shortDate.string(from: Date()))" : title
     }
     
     // Initializer for updating existing annotations
-    init(id: UUID, image: UIImage, measurements: [MeasurementLine], createdAt: Date, title: String) {
+    init(id: UUID, image: UIImage, measurements: [MeasurementLine], angleMeasurements: [AngleMeasurement], createdAt: Date, title: String) {
         self.id = id
         self.image = image.jpegData(compressionQuality: 0.8) ?? Data()
         self.measurements = measurements
+        self.angleMeasurements = angleMeasurements
         self.createdAt = createdAt
         self.title = title
     }
@@ -120,6 +123,62 @@ struct MeasurementLine: Identifiable, Codable {
     }
 }
 
+// MARK: - Angle Measurement
+struct AngleMeasurement: Identifiable, Codable {
+    let id: UUID
+    let centerPoint: CGPoint
+    let firstLineEnd: CGPoint
+    let secondLineEnd: CGPoint
+    let degrees: Double
+    let label: String
+    
+    init(centerPoint: CGPoint, firstLineEnd: CGPoint, secondLineEnd: CGPoint, degrees: Double) {
+        self.id = UUID()
+        self.centerPoint = centerPoint
+        self.firstLineEnd = firstLineEnd
+        self.secondLineEnd = secondLineEnd
+        self.degrees = degrees
+        self.label = String(format: "%.1f°", degrees)
+    }
+    
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        
+        let centerX = try container.decode(CGFloat.self, forKey: .centerX)
+        let centerY = try container.decode(CGFloat.self, forKey: .centerY)
+        centerPoint = CGPoint(x: centerX, y: centerY)
+        
+        let firstX = try container.decode(CGFloat.self, forKey: .firstX)
+        let firstY = try container.decode(CGFloat.self, forKey: .firstY)
+        firstLineEnd = CGPoint(x: firstX, y: firstY)
+        
+        let secondX = try container.decode(CGFloat.self, forKey: .secondX)
+        let secondY = try container.decode(CGFloat.self, forKey: .secondY)
+        secondLineEnd = CGPoint(x: secondX, y: secondY)
+        
+        degrees = try container.decode(Double.self, forKey: .degrees)
+        label = try container.decode(String.self, forKey: .label)
+    }
+    
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(centerPoint.x, forKey: .centerX)
+        try container.encode(centerPoint.y, forKey: .centerY)
+        try container.encode(firstLineEnd.x, forKey: .firstX)
+        try container.encode(firstLineEnd.y, forKey: .firstY)
+        try container.encode(secondLineEnd.x, forKey: .secondX)
+        try container.encode(secondLineEnd.y, forKey: .secondY)
+        try container.encode(degrees, forKey: .degrees)
+        try container.encode(label, forKey: .label)
+    }
+    
+    private enum CodingKeys: String, CodingKey {
+        case id, centerX, centerY, firstX, firstY, secondX, secondY, degrees, label
+    }
+}
+
 // MARK: - Drawing State
 enum DrawingState {
     case idle
@@ -131,6 +190,7 @@ enum DrawingState {
 class MeasurementViewModel: ObservableObject {
     @Published var capturedImage: UIImage?
     @Published var measurements: [MeasurementLine] = []
+    @Published var angleMeasurements: [AngleMeasurement] = []
     @Published var selectedUnit: MeasurementUnit = .millimeters
     @Published var drawingState: DrawingState = .idle
     @Published var showingCamera = false
@@ -170,11 +230,27 @@ class MeasurementViewModel: ObservableObject {
     
     func clearAllMeasurements() {
         measurements.removeAll()
+        angleMeasurements.removeAll()
+    }
+    
+    func addAngleMeasurement(_ angle: AngleMeasurement) {
+        angleMeasurements.append(angle)
+    }
+    
+    func removeAngleMeasurement(_ angle: AngleMeasurement) {
+        angleMeasurements.removeAll { $0.id == angle.id }
+    }
+    
+    func updateAngleMeasurement(_ oldAngle: AngleMeasurement, with newAngle: AngleMeasurement) {
+        if let index = angleMeasurements.firstIndex(where: { $0.id == oldAngle.id }) {
+            angleMeasurements[index] = newAngle
+        }
     }
     
     func goToHomeScreen() {
         capturedImage = nil
         measurements.removeAll()
+        angleMeasurements.removeAll()
         currentEditingAnnotation = nil
     }
     
@@ -248,15 +324,16 @@ class MeasurementViewModel: ObservableObject {
                     id: editingAnnotation.id,
                     image: image,
                     measurements: measurements,
+                    angleMeasurements: angleMeasurements,
                     createdAt: editingAnnotation.createdAt,
                     title: editingAnnotation.title
                 )
                 savedAnnotations[index] = updatedAnnotation
             }
         } else {
-            // Create new annotation (only if there are measurements)
-            guard !measurements.isEmpty else { return }
-            let annotation = SavedAnnotation(image: image, measurements: measurements)
+            // Create new annotation (only if there are measurements or angle measurements)
+            guard !measurements.isEmpty || !angleMeasurements.isEmpty else { return }
+            let annotation = SavedAnnotation(image: image, measurements: measurements, angleMeasurements: angleMeasurements)
             savedAnnotations.append(annotation)
         }
         

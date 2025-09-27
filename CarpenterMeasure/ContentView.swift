@@ -175,9 +175,45 @@ struct ContentView: View {
                                 .appShadowSmall()
                         }
                         
+                        Button(action: {
+                            // Create a simple test angle measurement that should be visible
+                            let centerPoint = CGPoint(x: 200, y: 300)
+                            let lineLength: CGFloat = 80
+                            
+                            // Create two lines at 45 degree angle
+                            let firstLineEnd = CGPoint(
+                                x: centerPoint.x + lineLength,
+                                y: centerPoint.y
+                            )
+                            let secondLineEnd = CGPoint(
+                                x: centerPoint.x,
+                                y: centerPoint.y - lineLength
+                            )
+                            
+                            let angleMeasurement = AngleMeasurement(
+                                centerPoint: centerPoint,
+                                firstLineEnd: firstLineEnd,
+                                secondLineEnd: secondLineEnd,
+                                degrees: 90.0
+                            )
+                            
+                            print("Creating angle at: \(centerPoint)")
+                            print("First line to: \(firstLineEnd)")
+                            print("Second line to: \(secondLineEnd)")
+                            
+                            viewModel.addAngleMeasurement(angleMeasurement)
+                        }) {
+                            Image(systemName: "angle")
+                                .font(.title3)
+                                .foregroundColor(.appPrimary)
+                                .frame(width: 50, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: AppRadius.md))
+                        }
+                        .buttonStyle(ToolbarButtonStyle())
+                        
                         Spacer()
                         
-                        Text("\(viewModel.measurements.count) measurements")
+                        Text("\(viewModel.measurements.count + viewModel.angleMeasurements.count) measurements")
                             .font(.appCaptionText)
                             .foregroundColor(.appTextSecondary)
                         
@@ -455,6 +491,7 @@ struct SavedAnnotationCard: View {
                     // Load the saved annotation for editing
                     viewModel.setImage(uiImage)
                     viewModel.measurements = annotation.measurements
+                    viewModel.angleMeasurements = annotation.angleMeasurements
                     viewModel.currentEditingAnnotation = annotation
                 }
             }
@@ -469,6 +506,18 @@ struct SavedAnnotationCard: View {
             }
         }
     }
+    }
+}
+
+struct ToolbarButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .background(
+                RoundedRectangle(cornerRadius: AppRadius.md)
+                    .fill(configuration.isPressed ? Color.appPrimary.opacity(0.3) : Color.clear)
+            )
+            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }
 
