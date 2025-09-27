@@ -5,9 +5,6 @@ struct ImageAnnotationView: View {
     let image: UIImage
     @ObservedObject var viewModel: MeasurementViewModel
     @State private var imageSize: CGSize = .zero
-    @State private var showingValueInput = false
-    @State private var tempMeasurementValue = ""
-    @State private var pendingMeasurement: MeasurementLine?
     @State private var currentDragLine: MeasurementLine?
     @State private var isLongPressing = false
     @State private var longPressStartPoint: CGPoint = .zero
@@ -22,6 +19,9 @@ struct ImageAnnotationView: View {
     @State private var longPressTimer: Timer?
     @State private var waitingForLongPress = false
     @State private var pendingEndpointEdit: (MeasurementLine, EndpointType)?
+    @State private var lastProximityHapticTime: Date = Date.distantPast
+    @State private var isSnappedToEndpoint = false
+    @State private var snappedEndpointPosition: CGPoint?
     
     enum EndpointType {
         case start, end
@@ -110,22 +110,35 @@ struct ImageAnnotationView: View {
                                     )
                                     let unitValue = viewModel.convertPixelsToUnit(pixelLength)
                                     
+                                    // Check for snapping to existing endpoints and get the final position
+                                    let finalEndPoint = checkAndSnapToEndpoint(at: dragValue.location)
+                                    
+                                    // Recalculate distance with potentially snapped position
+                                    let finalPixelLength = sqrt(
+                                        pow(finalEndPoint.x - newLineStartPoint.x, 2) +
+                                        pow(finalEndPoint.y - newLineStartPoint.y, 2)
+                                    )
+                                    let finalUnitValue = viewModel.convertPixelsToUnit(finalPixelLength)
+                                    
                                     // Provide continuous haptic feedback
-                                    provideContinuousHaptic(for: pixelLength)
+                                    provideContinuousHaptic(for: finalPixelLength)
                                     
                                     currentDragLine = MeasurementLine(
                                         startPoint: newLineStartPoint,
-                                        endPoint: dragValue.location,
-                                        value: unitValue,
+                                        endPoint: finalEndPoint,
+                                        value: finalUnitValue,
                                         unit: viewModel.selectedUnit,
-                                        label: String(format: "%.1f %@", unitValue, viewModel.selectedUnit.symbol)
+                                        label: "?" // Show "?" while drawing
                                     )
                                     
-                                    magnifierPosition = dragValue.location
+                                    magnifierPosition = finalEndPoint
                                 } else if let editingMeasurement = editingMeasurement, let editingEndpoint = editingEndpoint {
-                                    // Update the endpoint being dragged (preview only, don't save to viewModel yet)
-                                    let newStartPoint = editingEndpoint == .start ? dragValue.location : editingMeasurement.startPoint
-                                    let newEndPoint = editingEndpoint == .end ? dragValue.location : editingMeasurement.endPoint
+                                    // Check for snapping to existing endpoints and get the final position
+                                    let snappedPosition = checkAndSnapToEndpoint(at: dragValue.location)
+                                    
+                                    // Update the endpoint being dragged with potentially snapped position
+                                    let newStartPoint = editingEndpoint == .start ? snappedPosition : editingMeasurement.startPoint
+                                    let newEndPoint = editingEndpoint == .end ? snappedPosition : editingMeasurement.endPoint
                                     
                                     let pixelLength = sqrt(
                                         pow(newEndPoint.x - newStartPoint.x, 2) +
@@ -147,17 +160,22 @@ struct ImageAnnotationView: View {
                                         label: String(format: "%.1f %@", unitValue, editingMeasurement.unit.symbol)
                                     )
                                     
-                                    // Update magnifier position
-                                    magnifierPosition = dragValue.location
+                                    // Update magnifier position to snapped position
+                                    magnifierPosition = snappedPosition
                                 }
                             }
                             .onEnded { _ in
                                 // Handle new line creation from endpoint
                                 if isCreatingNewLineFromEndpoint, let dragLine = currentDragLine, dragLine.value > 0 {
-                                    // Show measurement input for new line created from endpoint
-                                    tempMeasurementValue = String(format: "%.1f", dragLine.value)
-                                    pendingMeasurement = dragLine
-                                    showingValueInput = true
+                                    // Add line immediately with "?" placeholder - no popup
+                                    let placeholderLine = MeasurementLine(
+                                        startPoint: dragLine.startPoint,
+                                        endPoint: dragLine.endPoint,
+                                        value: dragLine.value, // Keep the actual value for calculations
+                                        unit: dragLine.unit,
+                                        label: "?" // Show "?" as placeholder
+                                    )
+                                    viewModel.addMeasurement(placeholderLine)
                                     
                                     // Haptic feedback for completing new line creation
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
@@ -185,6 +203,10 @@ struct ImageAnnotationView: View {
                                 longPressTimer = nil
                                 waitingForLongPress = false
                                 pendingEndpointEdit = nil
+                                
+                                // Reset snap state
+                                isSnappedToEndpoint = false
+                                snappedEndpointPosition = nil
                             }
                     )
                     .simultaneousGesture(
@@ -239,20 +261,30 @@ struct ImageAnnotationView: View {
                                             // Convert pixel length to proper unit
                                             let unitValue = viewModel.convertPixelsToUnit(pixelLength)
                                             
+                                            // Check for snapping to existing endpoints and get the final position
+                                            let finalEndPoint = checkAndSnapToEndpoint(at: dragValue.location)
+                                            
+                                            // Recalculate distance with potentially snapped position
+                                            let finalPixelLength = sqrt(
+                                                pow(finalEndPoint.x - longPressStartPoint.x, 2) +
+                                                pow(finalEndPoint.y - longPressStartPoint.y, 2)
+                                            )
+                                            let finalUnitValue = viewModel.convertPixelsToUnit(finalPixelLength)
+                                            
                                             // Provide continuous haptic feedback during dragging
-                                            provideContinuousHaptic(for: pixelLength)
+                                            provideContinuousHaptic(for: finalPixelLength)
                                             
                                             currentDragLine = MeasurementLine(
                                                 startPoint: longPressStartPoint,
-                                                endPoint: dragValue.location,
-                                                value: unitValue,
+                                                endPoint: finalEndPoint,
+                                                value: finalUnitValue,
                                                 unit: viewModel.selectedUnit,
-                                                label: String(format: "%.1f %@", unitValue, viewModel.selectedUnit.symbol)
+                                                label: "?" // Show "?" while drawing
                                             )
                                         }
                                         
-                                        // Update magnifier position - use the visual line endpoint
-                                        magnifierPosition = dragValue.location
+                                        // Update magnifier position - use the final endpoint (potentially snapped)
+                                        magnifierPosition = currentDragLine?.endPoint ?? dragValue.location
                                     }
                                 default:
                                     break
@@ -261,19 +293,29 @@ struct ImageAnnotationView: View {
                             .onEnded { _ in
                                 // Gesture ended
                                 if let dragLine = currentDragLine, dragLine.value > 0 {
+                                    // Add line immediately with "?" placeholder - no popup
+                                    let placeholderLine = MeasurementLine(
+                                        startPoint: dragLine.startPoint,
+                                        endPoint: dragLine.endPoint,
+                                        value: dragLine.value, // Keep the actual value for calculations
+                                        unit: dragLine.unit,
+                                        label: "?" // Show "?" as placeholder
+                                    )
+                                    viewModel.addMeasurement(placeholderLine)
+                                    
                                     // Haptic feedback for completing measurement - like locking a tape measure
                                     let impactFeedback = UIImpactFeedbackGenerator(style: .light)
                                     impactFeedback.impactOccurred()
-                                    
-                                    pendingMeasurement = dragLine
-                                    tempMeasurementValue = String(format: "%.1f", dragLine.value)
-                                    showingValueInput = true
                                 }
                                 
                                 // Reset states
                                 isLongPressing = false
                                 showMagnifier = false
                                 currentDragLine = nil
+                                
+                                // Reset snap state
+                                isSnappedToEndpoint = false
+                                snappedEndpointPosition = nil
                             }
                     )
                 
@@ -319,7 +361,9 @@ struct ImageAnnotationView: View {
                         image: image,
                         position: magnifierPosition,
                         imageSize: geometry.size,
-                        screenSize: geometry.size
+                        screenSize: geometry.size,
+                        measurements: viewModel.measurements,
+                        excludeMeasurement: editingMeasurement
                     )
                     .position(
                         x: geometry.size.width - 60,
@@ -328,35 +372,6 @@ struct ImageAnnotationView: View {
                 }
             }
             .clipped()
-        }
-        .alert("Measurement", isPresented: $showingValueInput) {
-            TextField("Value", text: $tempMeasurementValue)
-                .keyboardType(.decimalPad)
-            
-            Button("Cancel") {
-                pendingMeasurement = nil
-                tempMeasurementValue = ""
-            }
-            
-            Button("Add") {
-                if let measurement = pendingMeasurement,
-                   let value = Double(tempMeasurementValue) {
-                    // Haptic feedback for successfully adding measurement - like marking a measurement
-                    let notificationFeedback = UINotificationFeedbackGenerator()
-                    notificationFeedback.notificationOccurred(.success)
-                    
-                    let finalMeasurement = MeasurementLine(
-                        startPoint: measurement.startPoint,
-                        endPoint: measurement.endPoint,
-                        value: value,
-                        unit: viewModel.selectedUnit,
-                        label: String(format: "%.1f %@", value, viewModel.selectedUnit.symbol)
-                    )
-                    viewModel.addMeasurement(finalMeasurement)
-                }
-                pendingMeasurement = nil
-                tempMeasurementValue = ""
-            }
         }
     }
     
@@ -425,6 +440,59 @@ struct ImageAnnotationView: View {
         }
         
         lastHapticDistance = distance
+    }
+    
+    private func checkAndSnapToEndpoint(at point: CGPoint) -> CGPoint {
+        let snapThreshold: CGFloat = 5 // pixels - very precise snapping zone
+        
+        // Find the closest endpoint within snap threshold
+        var closestEndpoint: CGPoint?
+        var closestDistance: CGFloat = snapThreshold
+        
+        for measurement in viewModel.measurements {
+            let distanceToStart = sqrt(
+                pow(point.x - measurement.startPoint.x, 2) +
+                pow(point.y - measurement.startPoint.y, 2)
+            )
+            let distanceToEnd = sqrt(
+                pow(point.x - measurement.endPoint.x, 2) +
+                pow(point.y - measurement.endPoint.y, 2)
+            )
+            
+            if distanceToStart < closestDistance {
+                closestDistance = distanceToStart
+                closestEndpoint = measurement.startPoint
+            }
+            
+            if distanceToEnd < closestDistance {
+                closestDistance = distanceToEnd
+                closestEndpoint = measurement.endPoint
+            }
+        }
+        
+        // If we found a close endpoint
+        if let snapPoint = closestEndpoint {
+            // If we weren't already snapped, or we're snapping to a different point
+            if !isSnappedToEndpoint || snappedEndpointPosition != snapPoint {
+                // Snap to the endpoint and provide strong haptic feedback
+                isSnappedToEndpoint = true
+                snappedEndpointPosition = snapPoint
+                
+                // Strong single haptic for snap confirmation
+                let notificationFeedback = UINotificationFeedbackGenerator()
+                notificationFeedback.prepare()
+                notificationFeedback.notificationOccurred(.success)
+            }
+            
+            return snapPoint // Return the snapped position
+        } else {
+            // No endpoint nearby - reset snap state and return original position
+            if isSnappedToEndpoint {
+                isSnappedToEndpoint = false
+                snappedEndpointPosition = nil
+            }
+            return point // Return the original finger position
+        }
     }
 }
 
@@ -544,6 +612,8 @@ struct MagnifierView: View {
     let position: CGPoint
     let imageSize: CGSize
     let screenSize: CGSize
+    let measurements: [MeasurementLine]
+    let excludeMeasurement: MeasurementLine?
     
     private var magnifierSize: CGFloat {
         return 100 // Fixed size, simple
@@ -566,7 +636,9 @@ struct MagnifierView: View {
                 image: image,
                 touchPoint: position,
                 imageSize: imageSize,
-                magnifierSize: magnifierSize
+                magnifierSize: magnifierSize,
+                measurements: measurements,
+                excludeMeasurement: excludeMeasurement
             )
             .frame(width: magnifierSize, height: magnifierSize)
             .clipShape(Circle())
@@ -584,6 +656,8 @@ struct MagnifiedImageView: UIViewRepresentable {
     let touchPoint: CGPoint
     let imageSize: CGSize
     let magnifierSize: CGFloat
+    let measurements: [MeasurementLine]
+    let excludeMeasurement: MeasurementLine?
     
     func makeUIView(context: Context) -> MagnifyImageUIView {
         let view = MagnifyImageUIView()
@@ -594,6 +668,8 @@ struct MagnifiedImageView: UIViewRepresentable {
     
     func updateUIView(_ uiView: MagnifyImageUIView, context: Context) {
         uiView.touchPoint = touchPoint
+        uiView.measurements = measurements
+        uiView.excludeMeasurement = excludeMeasurement
         uiView.setNeedsDisplay()
     }
 }
@@ -602,6 +678,8 @@ class MagnifyImageUIView: UIView {
     var image: UIImage!
     var touchPoint: CGPoint = .zero
     var imageSize: CGSize = .zero
+    var measurements: [MeasurementLine] = []
+    var excludeMeasurement: MeasurementLine?
     
     override func draw(_ rect: CGRect) {
         guard let context = UIGraphicsGetCurrentContext() else { return }
@@ -624,6 +702,9 @@ class MagnifyImageUIView: UIView {
         // Draw the image exactly as it appears in the view, accounting for aspect fit positioning
         let actualImageRect = getActualImageRect()
         image.draw(in: actualImageRect)
+        
+        // Draw measurement lines in the magnifier
+        drawMeasurementLines(in: context)
         
         // Restore context state
         context.restoreGState()
@@ -657,6 +738,46 @@ class MagnifyImageUIView: UIView {
                 width: displayWidth,
                 height: imageSize.height
             )
+        }
+    }
+    
+    private func drawMeasurementLines(in context: CGContext) {
+        // Draw existing measurement lines so they appear in the magnifier
+        // Exclude the measurement currently being edited to avoid confusion
+        for measurement in measurements {
+            // Skip the measurement that's currently being edited
+            if let excludeMeasurement = excludeMeasurement, measurement.id == excludeMeasurement.id {
+                continue
+            }
+            // Set line appearance
+            context.setStrokeColor(UIColor.systemRed.cgColor)
+            context.setLineWidth(2.0)
+            context.setLineCap(.round)
+            
+            // Draw the measurement line
+            context.move(to: measurement.startPoint)
+            context.addLine(to: measurement.endPoint)
+            context.strokePath()
+            
+            // Draw endpoint circles (small dots to show precise endpoints)
+            let endpointRadius: CGFloat = 3.0
+            
+            // Start point circle
+            context.setFillColor(UIColor.systemRed.cgColor)
+            context.fillEllipse(in: CGRect(
+                x: measurement.startPoint.x - endpointRadius,
+                y: measurement.startPoint.y - endpointRadius,
+                width: endpointRadius * 2,
+                height: endpointRadius * 2
+            ))
+            
+            // End point circle
+            context.fillEllipse(in: CGRect(
+                x: measurement.endPoint.x - endpointRadius,
+                y: measurement.endPoint.y - endpointRadius,
+                width: endpointRadius * 2,
+                height: endpointRadius * 2
+            ))
         }
     }
 }

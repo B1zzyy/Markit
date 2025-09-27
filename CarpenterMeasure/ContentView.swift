@@ -283,8 +283,8 @@ struct ContentView: View {
             .zIndex(1000)
             .allowsHitTesting(showingUnitDropdown)
             
-            // Floating camera button (only on home screen when not in select mode)
-            if viewModel.capturedImage == nil && !isSelectMode {
+            // Floating camera button (only on home screen when not in select mode and has saved annotations)
+            if viewModel.capturedImage == nil && !isSelectMode && !viewModel.savedAnnotations.isEmpty {
                 VStack {
                     Spacer()
                     HStack {
